@@ -56,13 +56,13 @@ extern "C" {
 
 #ifdef FLEXFLOAT_ON_SINGLE
 #define UINT_C UINT32_C
-#define MASK_FRAC (UINT32_C(0x007FFFFF))
-#define MASK_FRAC_MSB (UINT32_C(0x00800000))
-#define MASK_FRAC_EXCEPT_MSB (UINT32_C(0x003FFFFF))
+#define MASK_FRAC (UINT32_C(0x007FFFFF)) //biggest denormal (subnormal) value (23 ones)
+#define MASK_FRAC_MSB (UINT32_C(0x00800000)) //smallest normal value? (MSB of 24 bit value) (1 followed by 23 zeros)
+#define MASK_FRAC_EXCEPT_MSB (UINT32_C(0x003FFFFF)) //sign bit? (22 ones)
 #define SMALLEST_NORM_POS (0x00800000)
 #define SMALLEST_NORM_NEG (0x80800000)
-#define INF_EXP (0xFF)
-#define BIAS (127)
+#define INF_EXP (0xFF) //integer value of 255 (8 ones)
+#define BIAS (127) //bias for exponent
 #define NUM_BITS (32)
 #define NUM_BITS_EXP (8)
 #define NUM_BITS_FRAC (23)
@@ -136,7 +136,14 @@ typedef __float128 fp_t;
 // Helper macros
 
 #define SIGN( a ) ((bool) ((uint_t) (a)>>(NUM_BITS-1)))
-#define EXPONENT( a ) ((int_fast16_t) ((uint_t) (a)>>NUM_BITS_FRAC) & INF_EXP)
+   
+// (a) >> NUM_BITS_FRAC shifts bits to the right by number of fractional bits to obtain the bits in the sign and exponent. 
+// (                   ) & INF_EXP zeros out everything except for the bits corresponding to the exponent.
+// Thus the final result is the exponent value.
+#define EXPONENT( a ) ((int_fast16_t) ((uint_t) (a)>>NUM_BITS_FRAC) & INF_EXP) 
+
+// shifts bits of sign and exp values so that they are in their appropriate bit precisions.
+// then adds everything to get binary representation of number with corresponding sign, exp, and significant
 #define PACK( sign, exp, sig ) ((uint_t) (((uint_t) (sign)<<(NUM_BITS-1)) + ((uint_t) (exp)<<NUM_BITS_FRAC) + (sig)))
 
 #define CAST_TO_INT(d) (*((int_t *)(&(d))))
@@ -154,6 +161,7 @@ struct _flexfloat_t;
 typedef struct _flexfloat_t flexfloat_t;
 typedef void (*ff_function_p)(flexfloat_t *, void *);
 
+// probably need to come back to this to understand other things
 typedef struct _flexfloat_desc_t {
     uint8_t exp_bits;
     uint8_t frac_bits;
