@@ -26,23 +26,29 @@
 
 #include "assert.h"
 
+// computes the exponent of a number
 int_fast16_t flexfloat_exp(const flexfloat_t *a)
 {
-    int_fast16_t a_exp   = EXPONENT(CAST_TO_INT(a->value));
+    int_fast16_t a_exp   = EXPONENT(CAST_TO_INT(a->value)); //exponent value of a
 
-    int_fast16_t bias    = flexfloat_bias(a->desc);
+    int_fast16_t bias    = flexfloat_bias(a->desc); //in header file. no fucking clue what it does
 
     if(a_exp == 0 || a_exp == INF_EXP)
         return a_exp;
     else
-        return (a_exp - BIAS) + bias;
+        return (a_exp - BIAS) + bias; //why?
 }
 
 uint_t flexfloat_frac(const flexfloat_t *a)
 {
+   // CAST_TO_INT(a->value) & MASK_FRAC = significand bits
+   // NUM_BITS_FRAC - a->desc.frac_bits = ? (I don't know what desc.frac_bits is)
+   // Returns bit shifted version of significan bits
     return (CAST_TO_INT(a->value) & MASK_FRAC) >> (NUM_BITS_FRAC - a->desc.frac_bits);
 }
 
+// Does same thing as flexfloat_frac but for denormal (subnormal) numbers.
+// I don't understand the contents yet.
 uint_t flexfloat_denorm_frac(const flexfloat_t *a, int_fast16_t exp)
 {
     if(EXPONENT(CAST_TO_INT(a->value)) == 0) // Denormalized backend value
@@ -58,6 +64,7 @@ uint_t flexfloat_denorm_frac(const flexfloat_t *a, int_fast16_t exp)
 }
 
 // Pack normalized desc-fraction with desc-relative exponent to backend float
+// Gives the binary representation of value given binary representation of sign, exp, and significand
 uint_t flexfloat_pack(flexfloat_desc_t desc, bool sign, int_fast16_t exp, uint_t frac)
 {
     int_fast16_t bias    = flexfloat_bias(desc);
@@ -74,6 +81,7 @@ uint_t flexfloat_pack(flexfloat_desc_t desc, bool sign, int_fast16_t exp, uint_t
     return PACK(sign, exp, frac << (NUM_BITS_FRAC - desc.frac_bits));
 }
 
+// Same thing as flexfloat_pack but for denormalized functions
 uint_t flexfloat_denorm_pack(flexfloat_desc_t desc, bool sign, uint_t frac)
 {
     int_fast16_t bias    = flexfloat_bias(desc);
@@ -82,7 +90,14 @@ uint_t flexfloat_denorm_pack(flexfloat_desc_t desc, bool sign, uint_t frac)
 
 uint_t flexfloat_pack_bits(flexfloat_desc_t desc, uint_t bits)
 {
+   // bits >> (desc.exp_bits + desc.frac_bits) shifts bits to right so that sign bit is last
+   // 0x1 = 1? If so I don't understand the point of the bitwise AND since the only non-zero bit 
+   // after shifting is the sign bit...I think.
     bool sign = (bits >> (desc.exp_bits + desc.frac_bits)) & 0x1;
+   
+   // bits >> desc.frac_bits shifts bits to the right so that only sign bit and exponent bits remain
+   // 0x1<<desc.exp_bits puts a 1 in the (exp_bits+1) bit location
+   // (                 ) - 1
     int_fast16_t exp = (bits >> desc.frac_bits) & ((0x1<<desc.exp_bits) - 1);
     uint_t frac = bits & ((UINT_C(1)<<desc.frac_bits) - 1);
 
@@ -189,9 +204,10 @@ bool flexfloat_inf_rounding(const flexfloat_t *a, int_fast16_t exp, bool sign, b
 }
 
 // return a value to sum in order to apply rounding
+// what is the difference between EXPONENT(CAST_TO_INT(a->value)) and exp = flexfloat_exp(a)
 int_t flexfloat_rounding_value(const flexfloat_t *a, int_fast16_t exp, bool sign)
 {
-    if(EXPONENT(CAST_TO_INT(a->value)) == 0) // Denorm backend format
+    if(EXPONENT(CAST_TO_INT(a->value)) == 0) // Denorm backend format.  Just a rule for subnormal numers when exp=0
     {
         return flexfloat_denorm_pack(a->desc, sign, 0x1);
     }
@@ -239,6 +255,7 @@ void flexfloat_sanitize(flexfloat_t *a)
         fegetexceptflag(&flags, FE_ALL_EXCEPT);
 #endif
         // Rounding mode
+        // All three cases are doing the same thing.  What's the point?
         int mode = fegetround();
         if(mode == FE_TONEAREST && flexfloat_nearest_rounding(a, exp))
         {
